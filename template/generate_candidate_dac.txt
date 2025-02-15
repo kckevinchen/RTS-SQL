@@ -1,0 +1,695 @@
+You are an experienced database expert.
+Now you need to generate a SQL query given the database information, a question and some additional information.
+The database structure is defined by the following table schemas (comments after '--' provide additional column descriptions).
+Note that the "Example Values" are actual values from the column. Some column might contain the values that are directly related to the question. Use it to help you justify which columns to use.
+
+Given the table schema information description and the `Question`. You will be given table creation statements and you need understand the database and columns.
+
+You will be using a way called "recursive divide-and-conquer approach to SQL query generation from natural language".
+
+Here is a high level description of the steps.
+1. **Divide (Decompose Sub-question with Pseudo SQL):** The complex natural language question is recursively broken down into simpler sub-questions. Each sub-question targets a specific piece of information or logic required for the final SQL query. 
+2. **Conquer (Real SQL for sub-questions):**  For each sub-question (and the main question initially), a "pseudo-SQL" fragment is formulated. This pseudo-SQL represents the intended SQL logic but might have placeholders for answers to the decomposed sub-questions. 
+3. **Combine (Reassemble):** Once all sub-questions are resolved and their corresponding SQL fragments are generated, the process reverses. The SQL fragments are recursively combined by replacing the placeholders in the pseudo-SQL with the actual generated SQL from the lower levels.
+4. **Final Output:** This bottom-up assembly culminates in the complete and correct SQL query that answers the original complex question. 
+
+Database admin instructions (voliating any of the following will result is punishble to death!):
+1. **SELECT Clause:** 
+    - Only select columns mentioned in the user's question. 
+    - Avoid unnecessary columns or values.
+2. **Aggregation (MAX/MIN):**
+    - Always perform JOINs before using MAX() or MIN().
+3. **ORDER BY with Distinct Values:**
+    - Use `GROUP BY <column>` before `ORDER BY <column> ASC|DESC` to ensure distinct values.
+4. **Handling NULLs:**
+    - If a column may contain NULL values (indicated by "None" in value examples or explicitly), use `JOIN` or `WHERE <column> IS NOT NULL`.
+5. **FROM/JOIN Clauses:**
+    - Only include tables essential to answer the question.
+6. **Strictly Follow Hints:**
+    - Adhere to all provided hints.
+7. **Thorough Question Analysis:**
+    - Address all conditions mentioned in the question.
+8. **DISTINCT Keyword:**
+    - Use `SELECT DISTINCT` when the question requires unique values (e.g., IDs, URLs). 
+    - Refer to column statistics ("Value Statics") to determine if `DISTINCT` is necessary.
+9. **Column Selection:**
+    - Carefully analyze column descriptions and hints to choose the correct column when similar columns exist across tables.
+10. **String Concatenation:**
+    - Never use `|| ' ' ||` or any other method to concatenate strings in the `SELECT` clause. 
+11. **JOIN Preference:**
+    - Prioritize `INNER JOIN` over nested `SELECT` statements.
+12. **SQLite Functions Only:**
+    - Use only functions available in SQLite.
+13. **Date Processing:**
+    - Utilize `STRFTIME()` for date manipulation (e.g., `STRFTIME('%Y', SOMETIME)` to extract the year).
+
+When you get to the final query, output the query string ONLY inside the xml delimiter <FINAL_ANSWER></FINAL_ANSWER>.
+
+Here are some examples
+
+======= Example =======
+**************************
+【Table creation statements】
+/* The 'generalinfo' table stores general information about restaurants, including their unique identifier, food type, and the city where they are located. */
+CREATE TABLE generalinfo
+(
+    /* The unique identifier for each restaurant. It serves as the primary key and ensures that each restaurant can be distinctly referenced. */
+    /* Sample Data: 1, 2, 3 */
+    id_restaurant INTEGER NOT NULL PRIMARY KEY,
+    
+    /* Stores the type of food the restaurant serves. This column allows for categorization of restaurants based on cuisine type and can be NULL if unspecified. */
+    /* Sample Data: 'thai', 'italian', 'mexican' */
+    food_type TEXT NULL, -- examples: `thai`| `food type` description: the food type
+    
+    /* Stores the name of the city where the restaurant is located. This column can be NULL if the city is not provided. */
+    /* Sample Data: 'Bangkok', 'Rome', 'Los Angeles' */
+    city TEXT NULL -- description: the city where the restaurant is located in
+);
+
+/* The 'location' table stores the address details of restaurants, including the street name and the city, while linking to the 'generalinfo' table through the restaurant identifier. */
+CREATE TABLE location
+(
+    /* The unique identifier for each restaurant. It serves as the primary key and ensures that each restaurant's location can be distinctly referenced. This is also a foreign key referencing 'generalinfo'. */
+    /* Sample Data: 1, 2, 3 */
+    id_restaurant INTEGER NOT NULL PRIMARY KEY,
+    
+    /* Stores the name of the street where the restaurant is located. This column can capture various formats of street names and can be NULL if unspecified. */
+    /* Sample Data: 'Ave', 'San Pablo Ave', 'Pablo Ave' */
+    street_name TEXT NULL, -- examples: `ave`, `san pablo ave`, `pablo ave`| `street name` description: the street name of the restaurant
+    
+    /* Stores the name of the city where the restaurant is located. This column can be NULL if the city is not provided. */
+    /* Sample Data: 'Los Angeles', 'New York', 'San Francisco' */
+    city TEXT NULL, -- description: the city where the restaurant is located in
+    
+    /* Foreign key constraint that links the 'id_restaurant' to the 'id_restaurant' column in the 'generalinfo' table. It ensures that the restaurant location is always associated with an existing restaurant record. The 'on update cascade' and 'on delete cascade' clauses ensure that updates or deletions to the 'generalinfo' table will cascade to the 'location' table accordingly. */
+    FOREIGN KEY (id_restaurant) REFERENCES generalinfo (id_restaurant) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+**************************
+【Question】
+Question: 
+How many Thai restaurants can be found in San Pablo Ave, Albany? 
+
+Evidence:
+Thai restaurant refers to food_type = 'thai'; San Pablo Ave Albany refers to street_name = 'san pablo ave' AND T1.city = 'albany'
+
+
+**************************
+【Answer】
+Repeating the question and evidence, and generating the SQL with Recursive Divide-and-Conquer.
+**Question**: How many Thai restaurants can be found in San Pablo Ave, Albany? 
+**Evidence**: Thai restaurant refers to food_type = 'thai'; San Pablo Ave Albany refers to street_name = 'san pablo ave' AND T1.city = 'albany'
+
+**1. Divide and Conquer:**
+
+* **Main Question:** How many Thai restaurants can be found in San Pablo Ave, Albany? 
+    * **Analysis:** The question asks for a count of restaurants, so we'll use `COUNT()` for that. The count should include only Thai restaurants, which we can identify using the `food_type` column in the `generalinfo` table.  The location "San Pablo Ave, Albany" spans two columns (`street_name` and `city`) in the `location` table, requiring us to join these two tables.
+    * **Pseudo SQL:** SELECT COUNT(`T1`.`id_restaurant`) FROM `generalinfo` AS `T1` INNER JOIN `location` AS `T2` ON `T1`.`id_restaurant` = `T2`.`id_restaurant` WHERE  <Thai restaurant> AND <in San Pablo Ave, Albany>
+
+    * **Sub-question 1:** Thai restaurant
+        * **Analysis:** This is a straightforward filter on the `generalinfo` table using the `food_type` column.
+        * **Pseudo SQL:** `T1`.`food_type` = 'thai'
+
+    * **Sub-question 2:** in San Pablo Ave, Albany
+        * **Analysis:** This location information is spread across two columns in the `location` table. We need to combine these conditions with an "AND" operator to ensure both are met.
+        * **Pseudo SQL:** `T2`.`street_name` = 'san pablo ave' AND `T2`.`city` = 'albany' 
+
+**2. Assembling SQL:**
+
+* **Sub-question 1 (Thai restaurant):**
+    * **SQL:** `T1`.`food_type` = 'thai'
+
+* **Sub-question 2 (in San Pablo Ave, Albany):**
+    * **SQL:** `T2`.`street_name` = 'san pablo ave' AND `T2`.`city` = 'albany'
+
+* **Main Question (count of restaurants):**
+    * **SQL:** SELECT COUNT(`T1`.`id_restaurant`) FROM `generalinfo` AS `T1` INNER JOIN `location` AS `T2` ON `T1`.`id_restaurant` = `T2`.`id_restaurant` WHERE `T1`.`food_type` = 'thai' AND `T2`.`street_name` = 'san pablo ave' AND `T2`.`city` = 'albany'
+
+**3. Simplification and Optimization:**
+
+* The SQL query from step 2 is already quite efficient. We've used `INNER JOIN` to combine the tables based on their relationship, and the `WHERE` clause clearly defines our filtering criteria. There's no need for nested queries or complex sub-selections in this case.
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT COUNT(T1.id_restaurant) FROM generalinfo AS T1 INNER JOIN location AS T2 ON T1.id_restaurant = T2.id_restaurant WHERE T1.food_type = 'thai' AND T1.city = 'albany' AND T2.street_name = 'san pablo ave'
+</FINAL_ANSWER> 
+
+===========
+Example 1
+**************************
+【Database Info】
+/* The 'account' table stores information about user accounts, including their unique identifier, associated district, frequency of activity, and the date the record was created or last updated. */
+CREATE TABLE account (
+    /* The unique identifier for each account. It serves as the primary key and ensures that each account can be distinctly referenced. */
+    /* Sample Data: 1, 2, 3 */
+    account_id INT PRIMARY KEY,
+    
+    /* References the 'district_id' in the 'district' table, linking the account to a specific district. This establishes a relationship between accounts and their geographical or organizational grouping. */
+    /* Sample Data: 1, 2, 3 */
+    district_id INT REFERENCES district(district_id),
+    
+    /* Represents the frequency of account activity. This column helps in understanding the level of user engagement and cannot be NULL to ensure that activity data is always recorded. */
+    /* Sample Data: 'often', 'always', 'rarely' */
+    frequency VARCHAR(255) NOT NULL,
+    
+    /* Stores the date when the account record was created or last updated. This column is essential for tracking changes or additions to account information over time. */
+    /* Sample Data: '2021-08-24', '2022-03-15', '2023-11-01' */
+    date DATE NOT NULL
+);
+
+/* The 'client' table stores personal information about clients, including their unique identifier, gender, birth date, and associated district. It establishes a relationship with the 'district' table via 'district_id'. */
+CREATE TABLE client (
+  /* The unique identifier for each client. It serves as the primary key, ensuring that each client can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  client_id INT PRIMARY KEY,
+
+  /* Represents the gender of the client. This column stores a single character ('M' for male, 'F' for female, or other representations), and it cannot be NULL. */
+  /* Sample Data: M, F, M */
+  gender CHAR(1) NOT NULL,
+
+  /* Stores the client's birth date. This column is crucial for calculating age or for other demographic analyses. */
+  /* Sample Data: 1990-03-15, 1985-07-22, 2000-12-10 */
+  birth_date DATE NOT NULL,
+
+  /* References the 'district_id' in the 'district' table, linking the client to a specific district. This establishes a geographical or organizational grouping for the client. */
+  /* Sample Data: 1, 2, 3 */
+  district_id INT REFERENCES district(district_id)
+);
+
+/* The 'district' table stores information about districts, including a unique identifier for each district and additional attributes (a4 and a11) that describe specific characteristics of each district. */
+CREATE TABLE district (
+  /* The unique identifier for each district. It serves as the primary key, ensuring that each district can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  district_id INT PRIMARY KEY,
+
+  /* A string field representing a specific characteristic of the district. The exact meaning of 'a4' would depend on the context of the dataset, but it's assumed to be a textual description. */
+  /* Sample Data: 'Urban', 'Rural', 'Suburban' */
+  a4 VARCHAR(255) NOT NULL,
+
+  /* A string field representing another specific characteristic of the district. Similar to 'a4', the meaning of 'a11' is context-dependent and assumed to be a descriptive text. */
+  /* Sample Data: 'High-income', 'Low-income', 'Medium-income' */
+  a11 VARCHAR(255) NOT NULL
+);
+
+**************************
+【Question】
+Question: What is the gender of the youngest client who opened account in the lowest average salary branch?
+Hint: Given that Later birthdate refers to younger age; A11 refers to average salary
+
+**************************
+【Answer】
+Repeating the question and hint, and generating the SQL with Recursive Divide-and-Conquer.
+**Question**: What is the gender of the youngest client who opened account in the lowest average salary branch?
+**Hint**: Given that Later birthdate refers to younger age; A11 refers to average salary
+
+**1. Divide and Conquer:**
+
+* **Main Question:** What is the gender of the youngest client who opened account in the lowest average salary branch?
+    * **Analysis:** The question is asking about `gender`, and it appears in the table `client`. We will use this as the output column, selecting it from the youngest client in the lowest average salary branch.
+    * **Pseudo SQL:** SELECT `T1`.`gender` FROM `client` AS `T1` WHERE <youngest client in the lowest average salary branch> 
+
+    * **Sub-question 1:** youngest client in the lowest average salary branch
+        * **Analysis:** According to the hint, we need to use the `A11` from `district` to get the salary info, and the youngest client can be obtained from using the `birth_date` column of table `client`. The items between these two tables can be INNER JOIN using district_id.
+        * **Pseudo SQL:** SELECT `T1`.`client_id` FROM `client` AS `T1` INNER JOIN `district` AS `T2` ON `T1`.`district_id` = `T2`.`district_id` WHERE <lowest average salary branch> ORDER BY `T1`.`birth_date` DESC NULLS LAST LIMIT 1
+
+        * **Sub-question 1.1:** lowest average salary branch
+            * **Analysis:** We can get the lowest average salary branch using order by `A11` ASC and pick top 1. The column `A11` is not NULLABLE, so we do not need to add "IS NOT NULL" filter
+            * **Pseudo SQL:**  SELECT `district_id` FROM `district` ORDER BY `A11` ASC LIMIT 1 
+
+**2. Assembling SQL:**
+
+* **Sub-question 1.1 (lowest average salary branch):**
+    * **SQL:** SELECT `district_id` FROM `district` ORDER BY `A11` ASC LIMIT 1 
+
+* **Sub-question 1 (youngest client in the lowest average salary branch):**
+    * **SQL:** SELECT `T1`.`client_id` FROM `client` AS `T1` INNER JOIN `district` AS `T2` ON `T1`.`district_id` = `T2`.`district_id` WHERE `T2`.`district_id` IN (SELECT `district_id` FROM `district` ORDER BY `A11` ASC LIMIT 1) ORDER BY `T1`.`birth_date` DESC NULLS LAST LIMIT 1
+
+* **Main Question (gender of the client):**
+    * **SQL:** SELECT `T1`.`gender` FROM `client` AS `T1` WHERE `T1`.`client_id` = (SELECT `T1`.`client_id` FROM `client` AS `T1` INNER JOIN `district` AS `T2` ON `T1`.`district_id` = `T2`.`district_id` WHERE `T2`.`district_id` IN (SELECT `district_id` FROM `district` ORDER BY `A11` ASC LIMIT 1) ORDER BY `T1`.`birth_date` DESC NULLS LAST LIMIT 1) 
+
+**3. Simplification and Optimization:**
+
+* The final SQL query from step 2 can be simplified and optimized. The nested queries can be combined using a single `INNER JOIN` and the filtering can be done within a single `ORDER BY` clause.
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT `T1`.`gender`
+  FROM `client` AS `T1`
+  INNER JOIN `district` AS `T2`
+  ON `T1`.`district_id` = `T2`.`district_id`
+  ORDER BY `T2`.`A11` ASC, `T1`.`birth_date` DESC NULLS LAST
+  LIMIT 1
+</FINAL_ANSWER>
+
+===========
+Example 2 (dividing into two parallel sub-questions)
+**************************
+【Database Info】
+/* The 'games' table stores information about games, including a unique identifier for each game and the year the game was played. */
+CREATE TABLE games (
+  /* The unique identifier for each game. It serves as the primary key, ensuring that each game can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  id INTEGER NOT NULL PRIMARY KEY,
+
+  /* Represents the year the game was played. This column stores the year as an integer, and it can be NULL if the year is unknown or not provided. */
+  /* Sample Data: 2020, 2021, 2022 */
+  games_year INTEGER DEFAULT NULL
+);
+
+/* The 'games_city' table establishes a many-to-many relationship between games and cities. It links each game to one or more cities where it was held, using foreign keys to reference the 'games' and 'city' tables. */
+CREATE TABLE games_city (
+  /* References the 'id' of the game in the 'games' table. This column links each entry to a specific game, indicating the game held in a particular city. */
+  /* Sample Data: 1, 2, 3 */
+  games_id INTEGER DEFAULT NULL,
+
+  /* References the 'id' of the city in the 'city' table. This column links each entry to a specific city, indicating where the game was held. */
+  /* Sample Data: 101, 102, 103 */
+  city_id INTEGER DEFAULT NULL,
+
+  /* Establishes a foreign key relationship with the 'city' table's 'id' column. Ensures that each city_id corresponds to an existing city. */
+  FOREIGN KEY (city_id) REFERENCES city(id),
+
+  /* Establishes a foreign key relationship with the 'games' table's 'id' column. Ensures that each games_id corresponds to an existing game. */
+  FOREIGN KEY (games_id) REFERENCES games(id)
+);
+
+/* The 'city' table stores information about cities, including a unique identifier for each city and the city's name. */
+CREATE TABLE city (
+  /* The unique identifier for each city. It serves as the primary key, ensuring that each city can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  id INTEGER NOT NULL PRIMARY KEY,
+
+  /* Represents the name of the city. This column stores the city's name as a text field. It is allowed to be NULL, which could indicate an unknown or unspecified city name. */
+  /* Sample Data: 'London', 'Paris', 'New York' */
+  city_name TEXT DEFAULT NULL
+);
+
+**************************
+【Question】
+Question:
+From 1900 to 1992, how many games did London host?
+
+Hint:
+From 1900 to 1992 refers to games_year BETWEEN 1900 AND 1992; London refers to city_name = 'London'; games refer to games_name;
+
+**************************
+【Answer】
+
+Repeating the question and hint, and generating the SQL with Recursive Divide-and-Conquer.
+**Question**: From 1900 to 1992, how many games did London host?
+**Hint**: From 1900 to 1992 refers to games_year BETWEEN 1900 AND 1992; London refers to city_name = 'London'; games refer to games_name;
+
+**1. Divide and Conquer:**
+
+* **Main Question:** From 1900 to 1992, how many games did London host?
+    * **Analysis:** The question requires us to count games, which are represented by the `id` column in the `games` table.  We need to filter these games based on two criteria: they were hosted in London and occurred between 1900 and 1992.
+    * **Pseudo SQL:** SELECT COUNT(`T1`.`id`) FROM `games` AS `T1`  WHERE  <games are in London> AND <games year between 1900 and 1992>
+
+    * **Sub-question 1:** games are in London 
+        * **Analysis:**  To determine which games were hosted in London, we need to join the `games` table with the `games_city` table on `games_id` and then join with the `city` table on `city_id`. We'll use `INNER JOIN` to ensure only matching records are considered.  The filtering on 'London' will be applied to the `city_name` column.
+        * **Pseudo SQL:**  `T1`.`id` IN (SELECT `T1`.`games_id` FROM `games_city` AS `T1` INNER JOIN `city` AS `T2` ON `T1`.`city_id` = `T2`.`id` WHERE `T2`.`city_name` = 'London')
+
+    * **Sub-question 2:** games year between 1900 and 1992
+        * **Analysis:** This involves filtering the `games` table directly based on the `games_year` column using the `BETWEEN` operator.
+        * **Pseudo SQL:** `T1`.`games_year` BETWEEN 1900 AND 1992
+
+**2. Assembling SQL:**
+
+* **Sub-question 1 (games are in London):**
+    * **SQL:**  `T1`.`id` IN (SELECT `T1`.`games_id` FROM `games_city` AS `T1` INNER JOIN `city` AS `T2` ON `T1`.`city_id` = `T2`.`id` WHERE `T2`.`city_name` = 'London')
+
+* **Sub-question 2 (games year between 1900 and 1992):**
+    * **SQL:**  `T1`.`games_year` BETWEEN 1900 AND 1992
+
+* **Main Question (count of games):**
+    * **SQL:** SELECT COUNT(`T1`.`id`) FROM `games` AS `T1` WHERE `T1`.`id` IN (SELECT `T1`.`games_id` FROM `games_city` AS `T1` INNER JOIN `city` AS `T2` ON `T1`.`city_id` = `T2`.`id` WHERE `T2`.`city_name` = 'London') AND `T1`.`games_year` BETWEEN 1900 AND 1992
+
+**3. Simplification and Optimization:**
+
+* The nested query can be converted into a more efficient `JOIN` operation. We'll use `INNER JOIN` to combine `games`, `games_city`, and `city` based on the relationships between them.
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT COUNT(T3.id) FROM games_city AS T1 INNER JOIN city AS T2 ON T1.city_id = T2.id INNER JOIN games AS T3 ON T1.games_id = T3.id WHERE T2.city_name = 'London' AND T3.games_year BETWEEN 1900 AND 1992
+</FINAL_ANSWER> 
+
+===========
+
+Example 3 (When it's not clear which column should be used for a string matching, use a loosen condition such as string LIKE and OR condition to cover multiple possible columns.)
+**************************
+【Table creation statements】
+/* The 'student_programs' table stores information about various educational programs, including the type of program, the number of participants in specific age groups, and the school category offering the programs. */
+CREATE TABLE `student_programs` (
+  /* Represents the type of the educational program. This could include various program categories such as 'Summer School', 'After School Program', or 'Special Education'. */
+  /* Sample Data: 'Summer School', 'After School Program', 'Special Education' */
+  `Program Type` TEXT,
+
+  /* Represents the number of participants in the age group 10-15 years. This column stores a numeric value, indicating how many students in this age group participated in the program. */
+  /* Sample Data: 1250.0, 500.0, 75.0 */
+  `Participants (Ages 10-15)` DOUBLE PRECISION,
+
+  /* Represents the total enrollment of students aged 10-15 years in the program. This value includes all students enrolled, regardless of their participation in specific activities. */
+  /* Sample Data: 500.0, 1800.0, 1000.0 */
+  `Total Enrollment (Ages 10-15)` DOUBLE PRECISION,
+
+  /* Represents the category of school offering the program. This could include 'Charter Schools', 'Private Schools', or 'Magnet Schools', indicating the type of institution involved. */
+  /* Sample Data: 'Charter Schools', 'Private Schools', 'Magnet Schools' */
+  `School Category` TEXT
+);
+
+**************************
+【Question】
+Question: Please list the lowest three participation rates for students aged 10-15 in online programs. 
+Hint: Participation rate for students aged 10-15 = `Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`
+**************************
+【Answer】
+Repeating the question and hint, and generating the SQL with Recursive Divide-and-Conquer.
+**Question:** Please list the lowest three participation rates for students aged 10-15 in online programs. 
+**Hint:** Participation rate for students aged 10-15 = `Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`
+
+**1. Divide and Conquer:**
+
+* **Main Question:** Please list the lowest three participation rates for students aged 10-15 in online programs.
+    * **Analysis:** The question is asking about the ratio between `Participants (Ages 10-15)` and `Total Enrollment (Ages 10-15)`. We need to filter the data to only include online programs.
+    * **Pseudo SQL:** SELECT (`Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`) FROM `student_programs` WHERE <online programs> ORDER BY (`Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`) ASC NULLS LAST LIMIT 3
+
+    * **Sub-question 1:** online programs 
+        * **Analysis:** We will get the information from the table `student_programs`.
+        * **Pseudo SQL:** SELECT program_id FROM `student_programs` WHERE <condition for online programs>
+
+        * **Sub-question 1.1:** condition for online programs (Note: This requires external knowledge or database schema information. We need to identify which column(s) indicate "online programs".)
+            * **Analysis:** We'll assume either "School Category" or "Program Type" columns might contain the term "online."
+            * **Pseudo SQL:**  LOWER(`School Category`) LIKE '%online%' OR LOWER(`Program Type`) LIKE '%online%'
+
+**2. Assembling SQL:**
+
+* **Sub-question 1.1 (condition for online programs):**
+    * **SQL:** LOWER(`School Category`) LIKE '%online%' OR LOWER(`Program Type`) LIKE '%online%' 
+
+* **Sub-question 1 (online programs):**
+    * **SQL:** SELECT program_id FROM `student_programs` WHERE LOWER(`School Category`) LIKE '%online%' OR LOWER(`Program Type`) LIKE '%online%'
+
+* **Main Question (lowest three participation rates):**
+    * **SQL:** SELECT (`Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`) FROM `student_programs` WHERE program_id IN (SELECT program_id FROM `student_programs` WHERE LOWER(`School Category`) LIKE '%online%' OR LOWER(`Program Type`) LIKE '%online%') ORDER BY (`Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)`) ASC NULLS LAST LIMIT 3
+
+**3. Simplification and Optimization:**
+
+* We can directly incorporate the condition for online programs into the main query. 
+
+**Final Optimized SQL Query:**
+<FINAL_ANSWER>
+SELECT `Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)` FROM `student_programs` 
+  WHERE LOWER(`School Category`) LIKE '%online%' OR LOWER(`Program Type`) LIKE '%online%'
+  AND `Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)` IS NOT NULL 
+  ORDER BY `Participants (Ages 10-15)` / `Total Enrollment (Ages 10-15)` ASC NULLS LAST LIMIT 3;
+</FINAL_ANSWER>
+
+=============
+
+Example 4
+**************************
+【Table creation statements】
+/* The 'employees' table stores information about employees, including their unique identifier, associated department, and salary details. */
+CREATE TABLE employees (
+  /* The unique identifier for each employee. This column serves as the primary key and ensures that each employee can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  employee_id INT PRIMARY KEY,
+
+  /* Represents the department the employee is assigned to. This column stores the ID of the department, potentially linking to a 'departments' table via a foreign key (not defined in this schema). */
+  /* Sample Data: 101, 102, 103 */
+  department_id INT,
+
+  /* Represents the salary of the employee. This column stores the salary as an integer value, which could be annual or based on a different pay period. */
+  /* Sample Data: 50000, 60000, 45000 */
+  salary INT
+);
+
+**************************
+【Question】
+Question: How many employees earn over $100,000?
+
+【Answer】
+Repeating the question and hint, and generating the SQL with Recursive Divide-and-Conquer.
+**Question:** How many employees earn over $100,000?
+
+**1. Divide and Conquer:**
+
+* **Main Question:** How many employees earn over $100,000?
+
+    * **Pseudo SQL:** SELECT COUNT(*) FROM employees WHERE <employees earning over 100000>
+    * **Analysis:** The question is asking about the COUNT of employees. We need to filter the data to only include employees earning over $100,000.
+
+    * **Sub-question 1:** employees earning over 100000
+        * **Analysis:** Simple condition on the `salary` column.
+        * **Pseudo SQL:** SELECT employee_id FROM employees WHERE salary > 100000
+
+**2. Assembling SQL:**
+
+* **Sub-question 1 (employees earning over 100000):** 
+    * **SQL:** SELECT employee_id FROM employees WHERE salary > 100000
+
+* **Main Question (count of employees):**
+    * **SQL:** SELECT COUNT(*) FROM employees WHERE employee_id IN (SELECT employee_id FROM employees WHERE salary > 100000)
+
+**3. Simplification and Optimization:**
+
+* We can achieve the same result more efficiently within a single WHERE clause.
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT COUNT(*) FROM employees WHERE salary > 100000;
+</FINAL_ANSWER>
+
+====== Example 5 =======
+**************************
+【Table creation statements】
+/* The 'Airlines' table stores flight information, including the date of the flight, the origin airport, and the destination airport. It references the 'Airports' table to ensure that the origin and destination are valid airports. */
+CREATE TABLE Airlines (
+  /* Represents the date of the flight. This column stores the date in text format, allowing for various date formats, such as 'YYYY/MM/DD'. */
+  /* Sample Data: '2018/8/9', '2020/5/12', '2021/11/25' */
+  FL_DATE TEXT,
+
+  /* Represents the airport of origin. This column stores the airport code (e.g., 'SAN' for San Diego), referencing the 'Code' column in the 'Airports' table. */
+  /* Sample Data: 'SAN', 'LAX', 'JFK' */
+  ORIGIN TEXT,
+
+  /* Represents the airport of destination. This column stores the airport code (e.g., 'SAN' for San Diego), referencing the 'Code' column in the 'Airports' table. */
+  /* Sample Data: 'SAN', 'LAX', 'ORD' */
+  DEST TEXT,
+
+  /* Establishes a foreign key relationship with the 'Airports' table's 'Code' column, ensuring that the 'ORIGIN' airport code corresponds to an existing airport. */
+  FOREIGN KEY (ORIGIN) REFERENCES Airports(Code),
+
+  /* Establishes a foreign key relationship with the 'Airports' table's 'Code' column, ensuring that the 'DEST' airport code corresponds to an existing airport. */
+  FOREIGN KEY (DEST) REFERENCES Airports(Code)
+);
+
+/* The 'Airports' table stores information about airports, including a unique airport code and a textual description of the airport. */
+CREATE TABLE Airports (
+  /* The unique identifier for each airport. This column stores the airport code (e.g., 'SAN' for San Diego, 'LAX' for Los Angeles) and serves as the primary key to ensure each airport is distinct. */
+  /* Sample Data: 'SAN', 'LAX', 'JFK' */
+  Code TEXT PRIMARY KEY,
+
+  /* Provides a description of the airport. This column stores additional details about the airport, such as its full name or a brief description (e.g., 'San Diego International Airport'). */
+  /* Sample Data: 'San Diego International Airport', 'Los Angeles International Airport', 'John F. Kennedy International Airport' */
+  Description TEXT
+);
+
+**************************
+【Question】
+Question: 
+How many flights were there from San Diego International airport to Los Angeles International airport in the August of 2018? 
+
+Evidence:
+flights from refers to ORIGIN; San Diego International airport refers to Description = 'San Diego, CA: San Diego International'; flights to refers to DEST; Los Angeles International airport refers to Description = 'Los Angeles, CA: Los Angeles International'; in the August of 2018 refers to FL_DATE like '2018/8%';
+
+
+**************************
+【Answer】
+**Repeating the question and evidence, and generating the SQL with Recursive Divide-and-Conquer.**
+
+**Question**: How many flights were there from San Diego International airport to Los Angeles International airport in the August of 2018? 
+**Evidence**: flights from refers to ORIGIN; San Diego International airport refers to Description = 'San Diego, CA: San Diego International'; flights to refers to DEST; Los Angeles International airport refers to Description = 'Los Angeles, CA: Los Angeles International'; in the August of 2018 refers to FL_DATE like '2018/8%';
+
+**1. Divide and Conquer:**
+
+* **Main Question:** How many flights were there from San Diego International airport to Los Angeles International airport in the August of 2018? 
+    * **Analysis:** The question asks for a count of flights, which can be obtained by counting the `FL_DATE` entries in the `Airlines` table. We need to apply three filters: flights originating from San Diego International, flights destined for Los Angeles International, and flights occurring in August 2018.
+    * **Pseudo SQL:** SELECT COUNT(`FL_DATE`) FROM `Airlines` WHERE <flights are in August 2018> AND <flights are from San Diego International> AND <flights are to Los Angeles International>
+
+    * **Sub-question 1:** flights are in August 2018
+        * **Analysis:** This filter can be directly applied to the `Airlines` table using the `FL_DATE` column and the `LIKE` operator, as indicated by the evidence.
+        * **Pseudo SQL:** `FL_DATE` LIKE '2018/8%'
+
+    * **Sub-question 2:** flights are from San Diego International
+        * **Analysis:**  We need to find the airport code (`ORIGIN`) corresponding to 'San Diego, CA: San Diego International' from the `Airports` table and use it to filter the `Airlines` table. This requires joining `Airports` and `Airlines` based on `Airports`.`Code` = `Airlines`.`ORIGIN`.
+        * **Pseudo SQL:** `ORIGIN` = (SELECT `T2`.`ORIGIN` FROM `Airports` AS `T1` INNER JOIN `Airlines` AS `T2` ON `T1`.`Code` = `T2`.`ORIGIN` WHERE `T1`.`Description` = 'San Diego, CA: San Diego International')
+
+    * **Sub-question 3:** flights are to Los Angeles International
+        * **Analysis:** Similar to sub-question 2, we need to find the airport code (`DEST`) for 'Los Angeles, CA: Los Angeles International' from the `Airports` table and use it to filter the `Airlines` table. This also requires joining `Airports` and `Airlines`, but this time on `Airports`.`Code` = `Airlines`.`DEST`.
+        * **Pseudo SQL:** `DEST` = (SELECT `T4`.`DEST` FROM `Airports` AS `T3` INNER JOIN `Airlines` AS `T4` ON `T3`.`Code` = `T4`.`DEST` WHERE `T3`.`Description` = 'Los Angeles, CA: Los Angeles International')
+
+**2. Assembling SQL:**
+
+* **Sub-question 1 (flights are in August 2018):**
+    * **SQL:** `FL_DATE` LIKE '2018/8%'
+
+* **Sub-question 2 (flights are from San Diego International):**
+    * **SQL:** `ORIGIN` = (SELECT `T2`.`ORIGIN` FROM `Airports` AS `T1` INNER JOIN `Airlines` AS `T2` ON `T1`.`Code` = `T2`.`ORIGIN` WHERE `T1`.`Description` = 'San Diego, CA: San Diego International')
+
+* **Sub-question 3 (flights are to Los Angeles International):**
+    * **SQL:** `DEST` = (SELECT `T4`.`DEST` FROM `Airports` AS `T3` INNER JOIN `Airlines` AS `T4` ON `T3`.`Code` = `T4`.`DEST` WHERE `T3`.`Description` = 'Los Angeles, CA: Los Angeles International')
+
+* **Main Question (count of flights):**
+    * **SQL:** SELECT COUNT(`FL_DATE`) FROM `Airlines` WHERE `FL_DATE` LIKE '2018/8%' AND `ORIGIN` = (SELECT `T2`.`ORIGIN` FROM `Airports` AS `T1` INNER JOIN `Airlines` AS `T2` ON `T1`.`Code` = `T2`.`ORIGIN` WHERE `T1`.`Description` = 'San Diego, CA: San Diego International') AND `DEST` = (SELECT `T4`.`DEST` FROM `Airports` AS `T3` INNER JOIN `Airlines` AS `T4` ON `T3`.`Code` = `T4`.`DEST` WHERE `T3`.`Description` = 'Los Angeles, CA: Los Angeles International')
+
+**3. Simplification and Optimization:**
+
+* The query in step 2 is already quite optimized. We are using nested queries to avoid joining the `Airports` table multiple times in the main query, which could potentially impact performance. 
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT COUNT(FL_DATE) FROM Airlines WHERE FL_DATE LIKE '2018/8%' AND ORIGIN = ( SELECT T2.ORIGIN FROM Airports AS T1 INNER JOIN Airlines AS T2 ON T1.Code = T2.ORIGIN WHERE T1.Description = 'San Diego, CA: San Diego International' ) AND DEST = ( SELECT T4.DEST FROM Airports AS T3 INNER JOIN Airlines AS T4 ON T3.Code = T4.DEST WHERE T3.Description = 'Los Angeles, CA: Los Angeles International' )
+</FINAL_ANSWER> 
+
+===== Example 5 ========
+
+**************************
+【Table creation statements】
+/* The 'businesses' table stores information about businesses, specifically eateries, including a unique business identifier and the name of the business. */
+CREATE TABLE businesses (
+  /* The unique identifier for each business. This column serves as the primary key and ensures that each business can be distinctly referenced. */
+  /* Sample Data: 1, 2, 3 */
+  `business_id` INTEGER NOT NULL,
+
+  /* Represents the name of the eatery. This column stores the name of the business and is required (NOT NULL). */
+  /* Sample Data: 'Joe's Diner', 'The Burger Joint', 'Pizza Place' */
+  `name` TEXT NOT NULL,
+
+  /* Defines the primary key constraint for the 'business_id' column, ensuring uniqueness for each business entry. */
+  PRIMARY KEY (`business_id`)
+);
+
+/* The 'inspections' table stores information about business inspections, including the unique business identifier, the inspection score, and the date of the inspection. It references the 'businesses' table to link inspections to specific businesses. */
+CREATE TABLE inspections (
+  /* Represents the unique identifier for the business being inspected. This column is a foreign key that references the 'business_id' in the 'businesses' table, ensuring the inspection is linked to a valid business. */
+  /* Sample Data: 1, 2, 3 */
+  `business_id` INTEGER NOT NULL,
+
+  /* Stores the score given to the business during the inspection. This column can be NULL if no score is provided or if the inspection did not result in a numerical score. */
+  /* Sample Data: 85, 92, NULL */
+  `score` INTEGER DEFAULT NULL,
+
+  /* Represents the date of the inspection. This column stores the inspection date in the 'YYYY-MM-DD' format and is required (NOT NULL). */
+  /* Sample Data: '2014-01-24', '2020-11-15', '2018-06-09' */
+  `date` DATE NOT NULL,
+
+  /* Establishes a foreign key relationship with the 'businesses' table's 'business_id' column, ensuring that each inspection is linked to an existing business. */
+  FOREIGN KEY (`business_id`) REFERENCES `businesses` (`business_id`)
+);
+
+/* The 'violations' table stores information about violations related to businesses, including the unique business identifier and the date of the violation. It references the 'businesses' table to link violations to specific businesses. */
+CREATE TABLE violations (
+  /* Represents the unique identifier for the business where the violation occurred. This column is a foreign key that references the 'business_id' in the 'businesses' table, ensuring the violation is linked to a valid business. */
+  /* Sample Data: 1, 2, 3 */
+  `business_id` INTEGER NOT NULL,
+
+  /* Represents the date of the violation. This column stores the violation date in the 'YYYY-MM-DD' format and is required (NOT NULL). */
+  /* Sample Data: '2016-05-03', '2019-11-22', '2021-07-10' */
+  `date` DATE NOT NULL,
+
+  /* Establishes a foreign key relationship with the 'businesses' table's 'business_id' column, ensuring that each violation is linked to an existing business. */
+  FOREIGN KEY (`business_id`) REFERENCES `businesses` (`business_id`)
+);
+
+**************************
+【Question】
+Question: 
+What are the names of the establishments that met all the required standards for 4 consecutive years? 
+
+Evidence:
+establishment has the same meaning as business; score of 90 or more refers to score ≥ 90; year(date) = 2015; ; met all required standards for 4 consecutive years refers to COUNT(year(date)) = 4 where score = 100;
+
+
+**************************
+【Answer】
+Repeating the question and evidence, and generating the SQL with Recursive Divide-and-Conquer.
+
+**Question**: What are the names of the establishments that met all the required standards for 4 consecutive years? 
+**Evidence**: establishment has the same meaning as business; score of 90 or more refers to score ≥ 90; year(date) = 2015; ; met all required standards for 4 consecutive years refers to COUNT(year(date)) = 4 where score = 100;
+
+**1. Divide and Conquer:**
+
+* **Main Question:** What are the names of the establishments that met all the required standards for 4 consecutive years?
+    * **Analysis:** We need to find the names of businesses that have a score of 100 for 4 consecutive years. The `businesses` table contains the `name` and the `inspections` table contains the `score` and `date`. We will need to join these tables and filter by score. To check for consecutive years, we'll need to group by business and year, then check if each group has a count of 4.
+    * **Pseudo SQL:** SELECT DISTINCT `T2`.`name` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE  <score = 100> AND <4 consecutive years>
+
+    * **Sub-question 1:** score = 100
+        * **Analysis:** This is a simple filter on the `inspections` table where we select rows with a `score` of 100.
+        * **Pseudo SQL:** `T1`.`score` = 100
+
+    * **Sub-question 2:** 4 consecutive years
+        * **Analysis:** This is more complex. We need to group the inspections by business and year, then check if the count for each group is 4. To get the year from the `date` column, we'll use the `STRFTIME('%Y', date)` function. We'll also need to use window functions to assign a rank to each year within a business, allowing us to check for consecutiveness.
+        * **Pseudo SQL:** `T2`.`name` IN (SELECT `T4`.`name` FROM (SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100) AS `T3`) AS `T4` GROUP BY `T4`.`name`, date(`T4`.`years` || '-01-01', '-' || (`T4`.`rowNumber` - 1) || ' years') HAVING COUNT(`T4`.`years`) = 4)
+
+        * **Sub-question 2.1:** Get distinct businesses and their inspection years where the score is 100
+            * **Analysis:** We need to join `inspections` and `businesses` tables, filter by `score` = 100, and select distinct business names and their inspection years.
+            * **Pseudo SQL:** SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100
+
+        * **Sub-question 2.2:** Assign a rank to each year within a business
+            * **Analysis:** We'll use the `row_number()` window function to assign a rank to each year within each business, ordered chronologically. This will help us identify consecutive years later.
+            * **Pseudo SQL:** SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (<previous sub-query>) AS `T3`
+
+        * **Sub-question 2.3:** Group by business and consecutive year groups and check if the count is 4
+            * **Analysis:** We'll group the results by business name and a calculated date representing the start of each potential 4-year period. This date is calculated by adding (`rowNumber` - 1) years to the first day of the year extracted from the `years` column. We then filter for groups with a count of 4, indicating 4 consecutive years.
+            * **Pseudo SQL:** SELECT `T4`.`name` FROM (<previous sub-query>) AS `T4` GROUP BY `T4`.`name`, date(`T4`.`years` || '-01-01', '-' || (`T4`.`rowNumber` - 1) || ' years') HAVING COUNT(`T4`.`years`) = 4
+
+**2. Assembling SQL:**
+
+* **Sub-question 2.1 (distinct businesses and years with score 100):**
+    * **SQL:** SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100
+
+* **Sub-question 2.2 (assign rank to each year within a business):**
+    * **SQL:** SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100) AS `T3`
+
+* **Sub-question 2.3 (group by business and consecutive year groups):**
+    * **SQL:** SELECT `T4`.`name` FROM (SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100) AS `T3`) AS `T4` GROUP BY `T4`.`name`, date(`T4`.`years` || '-01-01', '-' || (`T4`.`rowNumber` - 1) || ' years') HAVING COUNT(`T4`.`years`) = 4
+
+* **Sub-question 2 (4 consecutive years):**
+    * **SQL:** `T2`.`name` IN (SELECT `T4`.`name` FROM (SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100) AS `T3`) AS `T4` GROUP BY `T4`.`name`, date(`T4`.`years` || '-01-01', '-' || (`T4`.`rowNumber` - 1) || ' years') HAVING COUNT(`T4`.`years`) = 4)
+
+* **Main Question (names of establishments):**
+    * **SQL:** SELECT DISTINCT `T2`.`name` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE  `T1`.`score` = 100 AND `T2`.`name` IN (SELECT `T4`.`name` FROM (SELECT `T3`.`name`, `T3`.`years`, row_number() OVER (PARTITION BY `T3`.`name` ORDER BY `T3`.`years`) AS `rowNumber` FROM (SELECT DISTINCT `name`, STRFTIME('%Y', `date`) AS `years` FROM `inspections` AS `T1` INNER JOIN `businesses` AS `T2` ON `T1`.`business_id` = `T2`.`business_id` WHERE `T1`.`score` = 100) AS `T3`) AS `T4` GROUP BY `T4`.`name`, date(`T4`.`years` || '-01-01', '-' || (`T4`.`rowNumber` - 1) || ' years') HAVING COUNT(`T4`.`years`) = 4)
+
+**3. Simplification and Optimization:**
+
+* The final SQL query from step 2 can be simplified by merging the nested queries into a single query with a `WITH` clause. This improves readability and potentially performance.
+
+**Final Optimized SQL Query:**
+
+<FINAL_ANSWER>
+SELECT DISTINCT T4.name FROM ( SELECT T3.name, T3.years, row_number() OVER (PARTITION BY T3.name ORDER BY T3.years) AS rowNumber FROM ( SELECT DISTINCT name, STRFTIME('%Y', `date`) AS years FROM inspections AS T1 INNER JOIN businesses AS T2 ON T1.business_id = T2.business_id WHERE T1.score = 100 ) AS T3 ) AS T4 GROUP BY T4.name, date(T4.years || '-01-01', '-' || (T4.rowNumber - 1) || ' years') HAVING COUNT(T4.years) = 4
+</FINAL_ANSWER>
+===========
+
+Now is the real question, following the instruction and examples, generate the SQL with Recursive Divide-and-Conquer approach. Make sure you only output one single query.
+**************************
+【Table creation statements】
+{schema}
+
+**************************
+【Question】
+Question: 
+{input_query}
+
+Evidence:
+{hint}
+
+**************************
+【Answer】
+Repeating the question and hint, and generating the SQL with Recursive Divide-and-Conquer.

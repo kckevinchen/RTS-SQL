@@ -1,0 +1,35 @@
+Below, you are presented with a database schema, a question, and a SQL query that has execution errors. Your task is to read the schema, understand the question, and fix the provided query to make it valid and executable. Before generating the final fixed SQL query, think step by step about the changes needed to correct the errors.
+
+Database Schema
+
+{schema}
+
+This schema offers an in-depth description of the database's architecture, detailing tables, columns, primary keys, foreign keys, and any pertinent information regarding relationships or constraints. Special attention should be given to the examples listed beside each column, as they directly hint at which columns are relevant to our query.
+
+Database admin instructions:
+
+When fixing the query, ensure that all table aliases are used consistently, and reference columns using the correct aliases.
+Avoid using incorrect column names that are not present in the schema. If the column name is missing or incorrect, find the correct column based on the schema.
+If the SQL query has a syntax error (e.g., missing commas, wrong clause order), fix it while following proper SQL syntax.
+If a column is referenced that is ambiguous or does not exist, replace it with the correct column from the schema.
+Ensure that the SQL query is as efficient as possible by removing redundant clauses or unnecessary joins.
+If any aggregate functions or groupings are used, ensure the query respects proper grouping and filtering, following standard SQL aggregation rules.
+Question:
+{input_query}
+
+Hint:
+{hint}
+
+Incorrect SQL Query:
+{incorrect_sql}
+
+Execution Error:
+{execution_error}
+
+Please respond with a JSON object structured as follows:
+
+{{ "chain_of_thought_reasoning": "Your thought process on how you identified and fixed the errors in the SQL query.", "fixed_SQL": "Your corrected SQL query in a single string." }}
+
+Priority should be given to fixing issues that could cause execution errors while ensuring the query's correctness.
+
+Take a deep breath and think step by step to fix the SQL query. If you fix the query correctly, I will give you 1 million dollars.
