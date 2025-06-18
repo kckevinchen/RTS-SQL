@@ -15,10 +15,7 @@ class LLMOracle(ABC):
         pass
 
 class OpenAIOracle(LLMOracle):
-    """
-    Implementation of LLMOracle using OpenAI's API.
-    """
-    def __init__(self, api_key: str = "sk-proj-ytNUcIPyuxJTjzsEyLjnT3BlbkFJ9vBCOqB8zPsWOtNQp6k5", model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str = "", model: str = "gpt-4o-mini"):
         self.api_key = api_key
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
@@ -41,9 +38,6 @@ class OpenAIOracle(LLMOracle):
     
 
 class XiYanSQLOracle(LLMOracle):
-    """
-    Implementation of LLMOracle using OpenAI's API.
-    """
     def __init__(self, model: str = "./XiYanSQL-QwenCoder-32B-2412"):
         self.model = AutoModelForCausalLM.from_pretrained(
                         model,
@@ -94,10 +88,7 @@ class XiYanSQLOracle(LLMOracle):
         return generated_text, token_probs
 
 class DeepseekOracle(LLMOracle):
-    """
-    Implementation of LLMOracle using Deepseek's API.
-    """
-    def __init__(self, api_key: str = "sk-14cc6a8730024a30872b92dd46669c84", model: str = "deepseek-chat", max_retries: int = 3, backoff_factor: float = 1.5):
+    def __init__(self, api_key: str = "", model: str = "deepseek-chat", max_retries: int = 3, backoff_factor: float = 1.5):
         self.client = openai.OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
         self.model = model
         self.max_retries = max_retries

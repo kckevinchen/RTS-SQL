@@ -3,14 +3,14 @@ import anthropic
 import numpy as np
 anyscale_client = OpenAI(
     base_url = "https://api.endpoints.anyscale.com/v1",
-    api_key = "esecret_shp3b2pv3sapkiymb2kz8hnd89"
+    api_key = ""
 )
 
 anthropic_client = anthropic.Anthropic(
-    api_key="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",
+    api_key="",
 )
 
-openai_client = OpenAI(api_key="sk-proj-ytNUcIPyuxJTjzsEyLjnT3BlbkFJ9vBCOqB8zPsWOtNQp6k5")
+openai_client = OpenAI(api_key="")
 
 
 # def generate_llama2
